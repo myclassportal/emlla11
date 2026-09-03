@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>بازی املای درس ۱۱: فرمانده دل‌ها</title>
+    <script src="supabase.js" defer></script>
+    <script src="game-db.js" defer></script>
+    <script src="game-audio.js" defer></script>
+    <style>
+        @font-face {
+            font-family: 'Vazirmatn';
+            src: url('Vazirmatn-Regular.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Vazirmatn';
+            src: url('Vazirmatn-Bold.woff2') format('woff2');
+            font-weight: bold;
+            font-style: normal;
+        }
+        :root {
+            --theme-primary: #5d4037;
+            --theme-dark: #3e2723;
+            --theme-accent: #795548;
+            --theme-bg: #efebe9;
+            --theme-card: #fffdf7;
+            --theme-border: #a1887f;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: 'Vazirmatn', sans-serif; }
+        body {
+            background: linear-gradient(135deg, #efebe9, #d7ccc8);
+            color: var(--theme-dark);
+            text-align: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            padding-bottom: 350px;
+        }
+        .hidden { display: none !important; }
+        .screen { width: 100%; display: flex; flex-direction: column; align-items: center; }
+        .container {
+            max-width: 620px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.96);
+            border-radius: 0 0 25px 25px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(62, 39, 35, 0.18);
+            position: relative;
+            z-index: 10;
+        }
+        .header {
+            background: var(--theme-primary);
+            color: #fff8e1;
+            padding: 14px;
+            border-radius: 16px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+            border-bottom: 4px solid var(--theme-dark);
+        }
+        h1 { font-size: 1.4rem; margin: 5px 0; }
+        .school { font-size: 0.95rem; font-weight: normal; color: #ffecb3; }
+        .stats-bar {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            background: var(--theme-dark);
+            color: #fff8e1;
+            padding: 8px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.95rem;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.25);
+            z-index: 100;
+        }
+        .stat-item { display: flex; align-items: center; gap: 6px; font-weight: bold; }
+        .sound-toggle-btn {
+            background: rgba(255,255,255,0.18);
+            border: 1px solid rgba(255,255,255,0.35);
+            color: white;
+            border-radius: 8px;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-family: inherit;
+        }
+        .desert-landscape {
+            position: relative;
+            height: 90px;
+            border-radius: 20px;
+            margin: 8px 0 14px 0;
+            overflow: visible;
+            background: linear-gradient(180deg, #fbf7ee 0%, #e8d8c3 50%, #d7c2a7 100%);
+            border: 2px solid #bcaaa4;
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.08), 0 3px 10px rgba(62, 39, 35, 0.08);
+        }
+        .desert-svg-bg {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 18px;
+            pointer-events: none;
+        }
+        .trail-line {
+            position: absolute;
+            top: 52%;
+            left: 4%;
+            width: 92%;
+            height: 2px;
+            border-top: 2px dashed #a1887f;
+            transform: translateY(-50%);
+            z-index: 2;
+            opacity: 0.7;
+        }
+        .station-node {
+            position: absolute;
+            top: 52%;
+            transform: translateY(-50%);
+            width: 42px;
+            height: 42px;
+            background: #fffdf7;
+            border: 2px solid #a1887f;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+            transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .st-0 { right: 4%; }
+        .st-1 { right: 30%; }
+        .st-2 { right: 49%; }
+        .st-3 { right: 94%; transform: translate(50%, -50%); }
+        .station-node.active-station {
+            border-color: #2e7d32;
+            background: #e8f5e9;
+            box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.25), 0 4px 10px rgba(0,0,0,0.25);
+            transform: translateY(-50%) scale(1.12);
+        }
+        .st-3.active-station { transform: translate(50%, -50%) scale(1.12); }
+        .station-node svg { width: 22px; height: 22px; }
+        .soldier-runner {
+            position: absolute;
+            top: 52%;
+            right: 4%;
+            transform: translateY(-62%);
+            width: 48px;
+            height: 48px;
+            z-index: 10;
+            transition: right 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));
+            pointer-events: none;
+        }
+        .soldier-runner svg {
+            width: 100%;
+            height: 100%;
+            animation: soldierMarch 0.7s infinite alternate ease-in-out;
+        }
+        @keyframes soldierMarch {
+            0% { transform: translateY(0) rotate(-2deg); }
+            100% { transform: translateY(-4px) rotate(2deg); }
+        }
+        .section {
+            margin: 10px 0;
+            padding: 15px;
+            background: var(--theme-card);
+            border-radius: 18px;
+            border: 2px solid #ffe082;
+            position: relative;
+        }
+        .meaning {
+            font-size: 0.95rem;
+            color: var(--theme-primary);
+            margin: 6px 0;
+            background: #ffe0b2;
+            padding: 5px 12px;
+            border-radius: 8px;
+            display: inline-block;
+            border: 1px dashed #ef6c00;
+            font-weight: bold;
+        }
+        .question {
+            font-size: 2.2rem;
+            font-weight: 900;
+            margin: 10px 0;
+            animation: floatText 3s infinite ease-in-out;
+        }
+        .color-1 { color: #bf360c; }
+        .color-2 { color: #1b5e20; }
+        .color-3 { color: #3e2723; }
+        .color-4 { color: #004d40; }
+        .color-5 { color: #b71c1c; }
+        @keyframes floatText {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        .audio-repeat-btn {
+            background: #e65100;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 10px 22px;
+            font-size: 1.05rem;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #bf360c;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0;
+        }
+        .audio-repeat-btn:active { transform: translateY(2px); box-shadow: none; }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid var(--theme-border);
+            border-radius: 12px;
+            font-size: 1.3rem;
+            text-align: center;
+            direction: rtl;
+            background: white;
+            color: var(--theme-dark);
+            outline: none;
+        }
+        button.action-btn {
+            background: var(--theme-accent);
+            color: white;
+            border: none;
+            padding: 12px 26px;
+            margin: 8px 4px;
+            border-radius: 12px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #4e342e;
+            transition: 0.15s;
+        }
+        button.action-btn:active { transform: translateY(2px); box-shadow: none; }
+        button.action-btn:disabled { background: #bcaaa4; box-shadow: none; cursor: not-allowed; }
+        .result {
+            margin: 10px 0;
+            font-size: 1.2rem;
+            font-weight: bold;
+            min-height: 38px;
+            padding: 8px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .result.correct { background: #c8e6c9; color: #1b5e20; border: 2px solid #388e3c; }
+        .result.wrong { background: #ffcdd2; color: #b71c1c; border: 2px solid #ef5350; animation: shake 0.4s; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .keyboard-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: var(--theme-dark);
+            padding: 8px 3px;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
+            z-index: 900;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s cubic-bezier(0, 0, 0.2, 1);
+            transform: translateY(100%);
+            touch-action: none !important;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+        }
+        .keyboard-visible { transform: translateY(0); }
+        .keyboard-row { display: flex; justify-content: center; margin-bottom: 4px; width: 100%; }
+        .key {
+            background: #efebe9;
+            color: var(--theme-dark);
+            border: none;
+            border-bottom: 4px solid #a1887f;
+            padding: 10px 0;
+            margin: 2px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            flex-grow: 1;
+            max-width: 9%;
+            font-weight: bold;
+            touch-action: none !important;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+        }
+        .key:active { transform: translateY(3px); border-bottom: 1px solid #a1887f; }
+        .key-space { max-width: 35%; background: #d7ccc8; border-bottom-color: #8d6e63; }
+        .key-back { max-width: 15%; background: #ffccbc; border-bottom-color: #bf360c; color: #bf360c; }
+        .key-enter { max-width: 15%; background: #dcedc8; border-bottom-color: #558b2f; color: #33691e; }
+        .key-close { background: #cfd8dc; max-width: 100%; border-bottom-color: #90a4ae; height: 35px; line-height: 15px; }
+        .keyboard-correct .key { background: #c8e6c9 !important; border-color: #388e3c !important; }
+        .keyboard-wrong .key { background: #ffcdd2 !important; border-color: #d32f2f !important; }
+        .flower {
+            position: fixed;
+            top: -10vh;
+            font-size: 2.2rem;
+            pointer-events: none;
+            animation: rainDown 3s linear forwards;
+            z-index: 9999;
+        }
+        @keyframes rainDown {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+        }
+        .report-card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            max-width: 450px;
+            width: 90%;
+            text-align: right;
+            margin: 30px auto;
+        }
+        .report-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px dotted #eee;
+        }
+        .report-item span:first-child { font-weight: bold; color: #555; }
+    </style>
+</head>
+<body>
+
+<div id="feedbackMessage" style="position:fixed; top:0; left:0; width:100%; padding:14px; text-align:center; color:white; font-size:1.4rem; font-weight:bold; z-index:2000; transform:translateY(-100%); transition:0.3s; box-shadow:0 4px 12px rgba(0,0,0,0.3);"></div>
+
+<div id="Screen-Loading" style="display:none; background:linear-gradient(135deg,#a1c4fd,#c2e9fb); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px;">
+    <div style="font-size: 3.5rem; margin-bottom: 15px;">🐰</div>
+    <h1 style="color:#2c3e50; font-size:20pt; margin-bottom:30px; font-weight: bold;">املای درس ۱۱: فرمانده دل‌ها</h1>
+    <div style="background:#e0e0e0; border-radius:12px; height:18px; width:80%; max-width:400px; overflow:hidden; margin-bottom:18px; border:2px solid #2c3e50;">
+        <div id="portal-loading-bar" style="background: linear-gradient(90deg, #ff007f, #aa00ff, #00b0ff); width:0%; height:100%; transition:width 0.3s ease;"></div>
+    </div>
+    <p id="portal-loading-text" style="font-size:13pt; color:#2c3e50; font-weight:bold;"></p>
+</div>
+
+<div id="statsBar" class="stats-bar hidden">
+    <div class="stat-item">👤 <span id="studentNameStat">-</span></div>
+    <div style="display:flex; gap:12px; align-items:center;">
+        <button class="sound-toggle-btn" id="btn-sound-toggle" onclick="toggleAppSound()">🔊 صدا: روشن</button>
+        <div class="stat-item">🎮 <span id="gameCountStat">۰</span></div>
+        <div class="stat-item" style="color:#ffd700;">⭐ <span id="starCountStat">۰</span></div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="header">
+        <h1 id="portal-school-title">---</h1>
+        <div class="school">املای درس ۱۱: فرمانده دل‌ها</div>
+    </div>
+
+    <div id="screenRegister" class="screen">
+        <div id="portal-welcome-section" style="width:100%;">
+            <h2 style="color:#4e342e; margin-bottom:8px;">سلام قهرمان پرتلاش! 🌟</h2>
+            <p style="color:#795548; font-size:0.95rem; margin-bottom:15px;">بیا با هم املای درس فرمانده دل‌ها رو در ۳ بخش تمرین کنیم و ستاره بگیریم!</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 10px; background: #fffdf7; border-radius: 12px; padding: 15px; border: 1px dashed var(--theme-border); margin: 15px auto; text-align: right; direction: rtl; font-size: 1rem; width: 100%; max-width: 280px;">
+                <div style="display:flex; justify-content:space-between;">
+                    <span>👤 نامت:</span>
+                    <span id="portal-student-name" style="font-weight:bold; color:var(--theme-dark);">---</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span>🎮 تلاش‌های قبلی:</span>
+                    <span id="portal-prev-plays" style="font-weight:bold; color:#e65100;">۰</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span>⭐ ستاره‌های قبلی:</span>
+                    <span id="portal-prev-stars" style="font-weight:bold; color:#f57f17;">۰ ⭐</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-weight:bold; color:#2e7d32; border-top:1px dashed var(--theme-border); padding-top:8px;">
+                    <span>🎯 ستاره هدف تکلیف:</span>
+                    <span id="portal-req-stars">۰ ⭐</span>
+                </div>
+            </div>
+        </div>
+
+        <button id="startGame" style="background:#2e7d32; color:white; padding:12px 24px; border:none; border-radius:12px; cursor:pointer; width:100%; max-width:260px; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 0 #1b5e20;">شروع عملیات املا ⛺</button>
+
+        <div id="portal-error-section" style="display:none; text-align:center; padding:20px; max-width: 450px; margin: 20px auto; background: white; border-radius: 12px;">
+            <h3 style="color:#d32f2f; margin-bottom:8px;">خطا در اتصال به کلاس</h3>
+            <p style="color:#555; font-size:11pt; margin-bottom:15px; line-height:1.6;">برای گرفتن تکالیفت، باید به اینترنت وصل باشی. لطفاً اینترنتت رو بررسی کن و دوباره دکمه زیر رو بزن.</p>
+            <button style="background:#1e90ff; color: white; padding: 10px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;" onclick="retryAuthentication()">🔄 تلاش دوباره</button>
+        </div>
+    </div>
+
+    <div id="screenGame" class="hidden">
+        <h2 id="welcomeName" style="color:var(--theme-primary); font-size:1.1rem; margin-bottom:4px;"></h2>
+        <div style="font-weight:bold; font-size:0.95rem; margin-bottom:6px; color:var(--theme-dark);">مرحله: <span id="currentQIndexDisplay">۰</span> از <span id="totalQDisplay">۶۲</span></div>
+        
+        <div class="desert-landscape">
+            <svg class="desert-svg-bg" viewBox="0 0 600 90" preserveAspectRatio="none">
+                <circle cx="300" cy="15" r="20" fill="#fff9c4" opacity="0.45"/>
+                <path d="M0 45 Q 150 25, 300 45 T 600 32 L 600 90 L 0 90 Z" fill="#dfcba9" opacity="0.6"/>
+                <path d="M0 60 Q 180 38, 360 58 T 600 48 L 600 90 L 0 90 Z" fill="#d2b894"/>
+            </svg>
+            <div class="trail-line"></div>
+
+            <div class="station-node st-0" id="node-0" title="ایستگاه ۱: کلمات ناقص">
+                <svg viewBox="0 0 32 32"><polygon points="16,5 4,27 28,27" fill="#556b2f"/><polygon points="16,5 16,27 28,27" fill="#465a26"/><polygon points="16,13 11,27 21,27" fill="#2d3a17"/><circle cx="16" cy="5" r="1.8" fill="#8b5a2b"/></svg>
+            </div>
+            <div class="station-node st-1" id="node-1" title="ایستگاه ۲: درست‌نویسی">
+                <svg viewBox="0 0 32 32"><rect x="5" y="17" width="10" height="6" rx="3" fill="#d7ccc8" stroke="#8d6e63" stroke-width="1.4"/><rect x="17" y="17" width="10" height="6" rx="3" fill="#bcaaa4" stroke="#8d6e63" stroke-width="1.4"/><rect x="11" y="11" width="10" height="6" rx="3" fill="#d7ccc8" stroke="#8d6e63" stroke-width="1.4"/><line x1="6" y1="25" x2="26" y2="25" stroke="#5d4037" stroke-width="2"/></svg>
+            </div>
+            <div class="station-node st-2" id="node-2" title="ایستگاه ۳: املای شنیداری">
+                <svg viewBox="0 0 32 32"><path d="M16 7 L16 27 M11 27 L21 27 M13 19 L19 19" stroke="#4e342e" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="6" r="2.8" fill="#c62828"/><path d="M10 5 C8 7 8 9 10 11" fill="none" stroke="#e65100" stroke-width="1.8" stroke-linecap="round"/><path d="M22 5 C24 7 24 9 22 11" fill="none" stroke="#e65100" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </div>
+            <div class="station-node st-3" id="node-3" title="فتح پرچم">
+                <svg viewBox="0 0 32 32"><line x1="9" y1="4" x2="9" y2="28" stroke="#3e2723" stroke-width="2.5" stroke-linecap="round"/><path d="M9 5 L25 11 L9 17 Z" fill="#d32f2f"/><polygon points="14,9 15,11 17,11 15.5,12.5 16,14.5 14,13 12,14.5 12.5,12.5 11,11 13,11" fill="#ffeb3b"/></svg>
+            </div>
+
+            <div class="soldier-runner" id="soldierIndicator">
+                <svg viewBox="0 0 48 48">
+                    <ellipse cx="24" cy="45" rx="9" ry="3" fill="rgba(0,0,0,0.2)"/>
+                    <path d="M12 18 C12 10, 36 10, 36 18 L38 22 L10 22 Z" fill="#556b2f"/>
+                    <circle cx="24" cy="24" r="8" fill="#ffcc80"/>
+                    <circle cx="21" cy="24" r="1.2" fill="#212121"/>
+                    <circle cx="27" cy="24" r="1.2" fill="#212121"/>
+                    <path d="M22 27 Q24 29 26 27" fill="none" stroke="#d84315" stroke-width="1.2" stroke-linecap="round"/>
+                    <path d="M17 31 L31 31 L33 42 L15 42 Z" fill="#6d4c41"/>
+                    <rect x="16" y="36" width="16" height="3" fill="#3e2723"/>
+                </svg>
+            </div>
+        </div>
+
+        <div id="questionSection" class="section">
+            <h3 id="sectionTitle" style="font-size:1.05rem; color:var(--theme-primary); margin-bottom:6px;"></h3>
+            
+            <div id="visualQuestionBox">
+                <div id="currentQuestion" class="question"></div>
+            </div>
+
+            <div id="audioQuestionBox" class="hidden">
+                <button class="audio-repeat-btn" onclick="playCurrentWordAudio()">🔊 پخش دوباره کلمه</button>
+            </div>
+
+            <div class="meaning hidden" id="meaningText"></div>
+            
+            <input type="text" id="answerInput" placeholder="کلمه رو اینجا بنویس..." readonly onclick="openKeyboard()">
+            
+            <button class="action-btn" id="checkBtn" onclick="checkAnswer()">بررسی پاسخ ✅</button>
+            <div class="result" id="resultDisplay"></div>
+        </div>
+    </div>
+
+    <div id="screenReport" class="screen hidden" style="padding: 10px;">
+        <div class="report-card">
+            <h2 style="text-align: center; margin-bottom: 20px; color: var(--theme-primary);">کارنامه‌ی درخشانت 🌟</h2>
+            <div style="text-align: right; background: #fafafa; padding: 15px; border-radius: 10px; border: 1px solid #eee; margin-bottom: 15px;">
+                <div class="report-item"><span>مدرسه:</span><span id="rep-school">---</span></div>
+                <div class="report-item"><span>نام دانش‌آموز:</span><span id="rep-name">---</span></div>
+                <div class="report-item"><span>تاریخ و زمان:</span><span id="rep-time" style="direction: ltr; font-size:0.85rem;">---</span></div>
+                <div class="report-item"><span>تعداد تلاش‌ها:</span><span id="rep-games">۰</span></div>
+                <div class="report-item"><span>ستاره‌های گرفته‌شده:</span><span>⭐ <span id="rep-stars">۰</span></span></div>
+                <div class="report-item" id="portal-req-stars-row" style="display:none; font-weight:bold; color:#2e7d32; border-top:1px dashed #ccc; padding-top:8px;">
+                    <span>🎯 ستاره مورد نیاز تکلیف:</span>
+                    <span id="rep-req-stars">۰ ⭐</span>
+                </div>
+            </div>
+
+            <div id="portal-submit-badge" style="display:none; background:#fff3e0; border:1px solid #ffe082; color:#e65100; padding:12px; border-radius:10px; margin-bottom:12px; font-weight:bold; font-size:11pt; text-align:right;"></div>
+            <div id="portal-goal-reached-badge" style="display:none; background:#e8f5e9; border:2px solid #2e7d32; color:#1b5e20; padding:12px; border-radius:10px; margin-bottom:12px; font-weight:bold; font-size:11pt; text-align:right;">
+                🎉 هوراااا قهرمان پرتلاش! هدف تکلیف رو کاملاً ترکوندی و همه‌ی ستاره‌های مورد نیاز رو گرفتی! تو فوق‌العاده‌ای! 🥇 حالا می‌تونی با خیال راحت به پرتال برگردی. خداقوت! ❤️
+            </div>
+            <div id="portal-back-instruction" style="display:none; width: 100%;"></div>
+
+            <button id="playAgainBtn" class="action-btn" style="width: 100%; height: 46px; background: #2e7d32; font-size: 1.1rem; margin-top: 10px;" onclick="restartGame()">تمرین دوباره 🔄</button>
+        </div>
+    </div>
+
+    <div id="screen-assistant" class="screen hidden" style="padding: 20px;">
+        <div class="report-card">
+            <h2 style="color: var(--theme-dark); margin-bottom: 15px; font-size: 1.4rem; text-align:center;">🌟 دستیار ثبت ستاره 🌟</h2>
+            <div style="background: #fff; border: 2px dashed #3498db; border-radius: 12px; padding: 15px; margin-bottom: 20px; line-height: 1.8; text-align: justify;">
+                <span style="font-size: 13pt; font-weight: bold; color: var(--theme-dark); display: block; margin-bottom: 8px;" id="ast-welcome">سلام قهرمان!</span>
+                <p style="font-size: 10.5pt; color: #333; margin: 0;">
+                    بازی قبلی‌ات با موفقیت تموم شده بود، اما به خاطر قطع شدن اینترنت، ستاره‌ات به دفتر کلاسی معلم نرسیده بود. دکمه زیر رو بزن تا ستاره‌ات ثبت بشه و کارنامه‌ات رو ببینی! 😊
+                </p>
+            </div>
+            <button style="width: 100%; height: 48px; background: #2e7d32; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size:12pt;" onclick="submitAssistantStar()">🌟 ثبت ستاره و دیدن کارنامه</button>
+        </div>
+    </div>
+
+    <div id="portal-submitting-screen" class="screen hidden" style="background:linear-gradient(135deg,#a1c4fd,#c2e9fb); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px;">
+        <div style="max-width: 420px; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; text-align: center;">
+            <h3 style="color:#2c3e50; margin-bottom:15px; font-weight:bold; font-size:15pt;">⏳ در حال فرستادن نمره‌ها به دفتر کلاس...</h3>
+            <div style="background:#eee; border-radius:10px; height:18px; width:100%; overflow:hidden; margin-bottom:15px;">
+                <div id="portal-progress-bar" style="background:linear-gradient(90deg, #ff007f, #aa00ff, #00b0ff); width:0%; height:100%; transition:width 0.2s;"></div>
+            </div>
+            <p id="portal-submit-status-text" style="font-size:11pt; color:#555; font-weight:bold; line-height:1.6;"></p>
+            <button id="portal-retry-submit-btn" style="display:none; margin:15px auto 0; background:#e74c3c; color: white; padding: 10px 20px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer;" onclick="retrySubmission()">🔄 تلاش دوباره برای فرستادن</button>
+        </div>
+    </div>
+</div>
+
+<div id="virtualKeyboard" class="keyboard-container">
+    <div class="keyboard-row">
+        <button class="key" data-key="چ">چ</button><button class="key" data-key="ج">ج</button><button class="key" data-key="ح">ح</button><button class="key" data-key="خ">خ</button><button class="key" data-key="ه">ه</button><button class="key" data-key="ع">ع</button><button class="key" data-key="غ">غ</button><button class="key" data-key="ف">ف</button><button class="key" data-key="ق">ق</button><button class="key" data-key="ث">ث</button><button class="key" data-key="ص">ص</button><button class="key" data-key="ض">ض</button>
+    </div>
+    <div class="keyboard-row">
+        <button class="key" data-key="گ">گ</button><button class="key" data-key="ک">ک</button><button class="key" data-key="م">م</button><button class="key" data-key="ن">ن</button><button class="key" data-key="ت">ت</button><button class="key" data-key="ا">ا</button><button class="key" data-key="ل">ل</button><button class="key" data-key="ب">ب</button><button class="key" data-key="ی">ی</button><button class="key" data-key="س">س</button><button class="key" data-key="ش">ش</button>
+    </div>
+    <div class="keyboard-row">
+        <button class="key" data-key="ئ">ئ</button><button class="key" data-key="آ">آ</button><button class="key" data-key="و">و</button><button class="key" data-key="پ">پ</button><button class="key" data-key="د">د</button><button class="key" data-key="ذ">ذ</button><button class="key" data-key="ر">ر</button><button class="key" data-key="ز">ز</button><button class="key" data-key="ژ">ژ</button><button class="key" data-key="ط">ط</button><button class="key" data-key="ظ">ظ</button>
+    </div>
+    <div class="keyboard-row">
+        <button class="key key-enter" data-key="enter">بررسی</button>
+        <button class="key key-space" data-key=" ">فاصله</button>
+        <button class="key" data-key="‌">نیم‌فاصله</button>
+        <button class="key key-back" data-key="back">⌫</button>
+    </div>
+    <div class="keyboard-row" style="margin-top:2px;">
+        <button class="key key-close" onclick="closeKeyboard()">🔻 بستن کیبورد</button>
+    </div>
+</div>
+
+<script>
+    const LESSON_ID = "11";
+    let STORAGE_KEY = 'studentProfile_Emla11_Default';
+    let GAME_STATE_KEY = 'gameState_Emla11_Default';
+
+    const CELEBRATION_ICONS = ['🎖️', '💂‍♂️', '✨', '🌟', '🌷', '🏔️'];
+    const STATION_POSITIONS = [4, 30, 49, 94];
+    const COLOR_CLASSES = ['color-1', 'color-2', 'color-3', 'color-4', 'color-5'];
+
+    const toPersian = num => String(num).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
+    const getEl = id => document.getElementById(id);
+
+    let isProcessingAnswer = false;
+
+    function toggleAppSound() {
+        const isMuted = GameAudio.toggleMute();
+        const btn = getEl('btn-sound-toggle');
+        if (btn) btn.innerText = isMuted ? '🔇 صدا: خاموش' : '🔊 صدا: روشن';
+    }
+
+    function normalizeText(str) {
+        if (!str) return '';
+        return str
+            .replace(/[\u200C\u200E\u200F\u00A0]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .replace(/[ي]/g, 'ی')
+            .replace(/[ك]/g, 'ک')
+            .replace(/[ة]/g, 'ه')
+            .replace(/[ًٌٍَُِّْٰ]/g, '')
+            .trim();
+    }
+
+    function cleanForCompare(str) {
+        return normalizeText(str).replace(/\s+/g, '');
+    }
+
+    const questionData = [
+        {
+            title: "بخش اول: کلمات ناقص رو کامل کن",
+            introSound: "intro_sec_1",
+            type: "visual",
+            questions: [
+                { q: "جبـ...ه", h: "محل جنگ", a: ["جبهه"] },
+                { q: "مرخـ...ی", h: "اجازه استراحت", a: ["مرخصی"] },
+                { q: "قـ.ّ..ـه", h: "داستان", a: ["قصه"] },
+                { q: "بـ...یه", h: "آنچه مانده", a: ["بقیه"] },
+                { q: "مسـ...ولیت", h: "وظیفه", a: ["مسئولیت"] },
+                { q: "مانـ...", h: "سد راه", a: ["مانع"] },
+                { q: "اعتـ...اد", h: "باور و یقین", a: ["اعتقاد"] },
+                { q: "...ـجیب", h: "شگفت‌آور", a: ["عجیب"] },
+                { q: "مـ...تاح", h: "نیازمند", a: ["محتاج"] },
+                { q: "...ـملیات", h: "کار و اقدام نظامی", a: ["عملیات"] },
+                { q: "مـ...لوم", h: "ستمدیده", a: ["مظلوم"] },
+                { q: "...ـربه", h: "برخورد", a: ["ضربه"] },
+                { q: "منـ...قه", h: "ناحیه", a: ["منطقه"] },
+                { q: "تسخیرناپـ...یر", h: "شکست‌ناپذیر", a: ["تسخیرناپذیر", "تسخیر ناپذیر"] },
+                { q: "فـ...ا", h: "محیط وسیع", a: ["فضا"] },
+                { q: "و...ف‌ناپذیر", h: "چیزی که توصیف نمی‌شود", a: ["وصف‌ناپذیر", "وصف ناپذیر"] },
+                { q: "نفو...", h: "وارد شدن", a: ["نفوذ"] },
+                { q: "شجا...ت", h: "دلیری", a: ["شجاعت"] }
+            ]
+        },
+        {
+            title: "بخش دوم: شکل درست کلمه رو بنویس",
+            introSound: "intro_sec_2",
+            type: "visual",
+            questions: [
+                { q: "حتا", h: "", a: ["حتی"] },
+                { q: "مکابله", h: "روبرو شدن", a: ["مقابله"] },
+                { q: "بی‌وکفه", h: "بدون توقف", a: ["بی‌وقفه", "بی وقفه"] },
+                { q: "وهشت", h: "ترس زیاد", a: ["وحشت"] },
+                { q: "گزرگاه", h: "محل عبور", a: ["گذرگاه"] },
+                { q: "انتضار", h: "چشم به راه بودن", a: ["انتظار"] },
+                { q: "لحضه", h: "زمان کوتاه", a: ["لحظه"] },
+                { q: "متمعن", h: "آسوده‌خاطر", a: ["مطمئن"] },
+                { q: "نزامی", h: "مربوط به ارتش", a: ["نظامی"] },
+                { q: "سقوت", h: "افتادن", a: ["سقوط"] },
+                { q: "حدف", h: "نشان", a: ["هدف"] },
+                { q: "ترجیه", h: "برتری دادن", a: ["ترجیح"] },
+                { q: "نزاره", h: "تماشا کردن", a: ["نظاره"] }
+            ]
+        },
+        {
+            title: "بخش سوم: املای شنیداری (به صدا گوش بده و بنویس)",
+            introSound: "intro_sec_3",
+            type: "audio",
+            questions: [
+                { audio: "word_1", h: "محل جنگ", a: ["جبهه"] },
+                { audio: "word_2", h: "اجازه استراحت", a: ["مرخصی"] },
+                { audio: "word_3", h: "داستان", a: ["قصه"] },
+                { audio: "word_4", h: "آنچه مانده", a: ["بقیه"] },
+                { audio: "word_5", h: "وظیفه", a: ["مسئولیت"] },
+                { audio: "word_6", h: "سد راه", a: ["مانع"] },
+                { audio: "word_7", h: "باور و یقین", a: ["اعتقاد"] },
+                { audio: "word_8", h: "شگفت‌آور", a: ["عجیب"] },
+                { audio: "word_9", h: "نیازمند", a: ["محتاج"] },
+                { audio: "word_10", h: "کار و اقدام نظامی", a: ["عملیات"] },
+                { audio: "word_11", h: "ستمدیده", a: ["مظلوم"] },
+                { audio: "word_12", h: "برخورد", a: ["ضربه"] },
+                { audio: "word_13", h: "ناحیه", a: ["منطقه"] },
+                { audio: "word_14", h: "شکست‌ناپذیر", a: ["تسخیرناپذیر", "تسخیر ناپذیر"] },
+                { audio: "word_15", h: "محیط وسیع", a: ["فضا"] },
+                { audio: "word_16", h: "چیزی که توصیف نمی‌شود", a: ["وصف‌ناپذیر", "وصف ناپذیر"] },
+                { audio: "word_17", h: "وارد شدن", a: ["نفوذ"] },
+                { audio: "word_18", h: "دلیری", a: ["شجاعت"] },
+                { audio: "word_19", h: "", a: ["حتی"] },
+                { audio: "word_20", h: "روبرو شدن", a: ["مقابله"] },
+                { audio: "word_21", h: "بدون توقف", a: ["بی‌وقفه", "بی وقفه"] },
+                { audio: "word_22", h: "ترس زیاد", a: ["وحشت"] },
+                { audio: "word_23", h: "محل عبور", a: ["گذرگاه"] },
+                { audio: "word_24", h: "چشم به راه بودن", a: ["انتظار"] },
+                { audio: "word_25", h: "زمان کوتاه", a: ["لحظه"] },
+                { audio: "word_26", h: "آسوده‌خاطر", a: ["مطمئن"] },
+                { audio: "word_27", h: "مربوط به ارتش", a: ["نظامی"] },
+                { audio: "word_28", h: "افتادن", a: ["سقوط"] },
+                { audio: "word_29", h: "نشان", a: ["هدف"] },
+                { audio: "word_30", h: "برتری دادن", a: ["ترجیح"] },
+                { audio: "word_31", h: "تماشا کردن", a: ["نظاره"] }
+            ]
+        }
+    ];
+
+    const totalQuestions = questionData[0].questions.length + questionData[1].questions.length + questionData[2].questions.length;
+    let questionsCompleted = 0;
+    let lastPlayedSectionIntro = -1;
+
+    let userProfile = {
+        name: "",
+        totalGames: 0,
+        totalStars: 0,
+        reportShown: false
+    };
+
+    let currentGameState = {
+        score: 0,
+        completedCount: 0
+    };
+
+    function openKeyboard() {
+        GameAudio.playSFX('click');
+        const keyboard = getEl('virtualKeyboard');
+        keyboard.classList.add('keyboard-visible');
+        setTimeout(() => {
+            getEl('answerInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 120);
+    }
+    
+    function closeKeyboard() {
+        getEl('virtualKeyboard').classList.remove('keyboard-visible');
+    }
+
+    function animateFeedback(type) {
+        const keyboard = getEl('virtualKeyboard');
+        const colorClass = type === 'correct' ? 'keyboard-correct' : 'keyboard-wrong';
+        const feedbackBar = getEl('feedbackMessage');
+        const bg = type === 'correct' ? '#2e7d32' : '#c62828';
+        const txt = type === 'correct' ? 'آفرین! کاملاً درسته 🎯' : 'دقت کن قهرمان! دوباره بنویس ❌';
+
+        keyboard.classList.add(colorClass);
+        setTimeout(() => { keyboard.classList.remove(colorClass); }, 700);
+
+        feedbackBar.style.background = bg;
+        feedbackBar.innerText = txt;
+        feedbackBar.style.transform = 'translateY(0)';
+        setTimeout(() => { feedbackBar.style.transform = 'translateY(-100%)'; }, 1400);
+    }
+
+    function showCelebrationEffects() {
+        for (let i = 0; i < 18; i++) {
+            const icon = document.createElement('div');
+            icon.classList.add('flower');
+            icon.innerText = CELEBRATION_ICONS[Math.floor(Math.random() * CELEBRATION_ICONS.length)];
+            icon.style.left = `${Math.random() * 90}vw`; 
+            icon.style.animationDuration = `${Math.random() * 1.5 + 1.5}s`;
+            document.body.appendChild(icon);
+            setTimeout(() => { icon.remove(); }, 3500);
+        }
+    }
+
+    function updateVisualProgress() {
+        const soldier = getEl('soldierIndicator');
+        const pct = (questionsCompleted / totalQuestions);
+        const minRight = STATION_POSITIONS[0];
+        const maxRight = STATION_POSITIONS[3];
+        const currentRight = minRight + (pct * (maxRight - minRight));
+        soldier.style.right = currentRight + '%';
+
+        getEl('node-0').classList.add('active-station');
+        getEl('node-1').classList.toggle('active-station', questionsCompleted >= 18);
+        getEl('node-2').classList.toggle('active-station', questionsCompleted >= 31);
+        getEl('node-3').classList.toggle('active-station', questionsCompleted >= totalQuestions);
+    }
+
+    function saveProfile() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(userProfile));
+    }
+
+    function saveGameState() {
+        currentGameState.completedCount = questionsCompleted;
+        localStorage.setItem(GAME_STATE_KEY, JSON.stringify(currentGameState));
+    }
+
+    function clearGameState() {
+        localStorage.removeItem(GAME_STATE_KEY);
+    }
+
+    function checkSavedUnfinishedState() {
+        try {
+            const saved = localStorage.getItem(GAME_STATE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && parsed.completedCount > 0 && parsed.completedCount < totalQuestions) {
+                    return parsed;
+                }
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    function getCurrentQuestionInfo() {
+        let count = questionsCompleted;
+        if (count < questionData[0].questions.length) {
+            return { sectionIdx: 0, questionIdx: count, qObj: questionData[0].questions[count], type: "visual" };
+        }
+        count -= questionData[0].questions.length;
+        if (count < questionData[1].questions.length) {
+            return { sectionIdx: 1, questionIdx: count, qObj: questionData[1].questions[count], type: "visual" };
+        }
+        count -= questionData[1].questions.length;
+        if (count < questionData[2].questions.length) {
+            return { sectionIdx: 2, questionIdx: count, qObj: questionData[2].questions[count], type: "audio" };
+        }
+        return null;
+    }
+
+    function loadQuestion() {
+        const qInfo = getCurrentQuestionInfo();
+        if (!qInfo) {
+            endGame();
+            return;
+        }
+
+        getEl('resultDisplay').innerHTML = "";
+        getEl('resultDisplay').className = "result";
+        getEl('answerInput').value = "";
+
+        getEl('sectionTitle').innerText = questionData[qInfo.sectionIdx].title;
+        
+        const meaningEl = getEl('meaningText');
+        if (qInfo.qObj.h && qInfo.qObj.h.trim() !== "") {
+            meaningEl.classList.remove('hidden');
+            meaningEl.innerText = `(معنی: ${qInfo.qObj.h})`;
+        } else {
+            meaningEl.classList.add('hidden');
+        }
+
+        getEl('currentQIndexDisplay').innerText = toPersian(questionsCompleted + 1);
+        getEl('totalQDisplay').innerText = toPersian(totalQuestions);
+
+        if (qInfo.type === "visual") {
+            getEl('visualQuestionBox').classList.remove('hidden');
+            getEl('audioQuestionBox').classList.add('hidden');
+            
+            const qElement = getEl('currentQuestion');
+            qElement.classList.remove(...COLOR_CLASSES);
+            const colorIndex = questionsCompleted % COLOR_CLASSES.length;
+            qElement.classList.add(COLOR_CLASSES[colorIndex]);
+            qElement.innerText = qInfo.qObj.q;
+        } else {
+            getEl('visualQuestionBox').classList.add('hidden');
+            getEl('audioQuestionBox').classList.remove('hidden');
+        }
+
+        if (lastPlayedSectionIntro !== qInfo.sectionIdx) {
+            lastPlayedSectionIntro = qInfo.sectionIdx;
+            const intro = questionData[qInfo.sectionIdx].introSound;
+            if (qInfo.type === "audio") {
+                GameAudio.playList([intro], () => {
+                    playCurrentWordAudio();
+                });
+            } else {
+                GameAudio.playList([intro]);
+            }
+        } else if (qInfo.type === "audio") {
+            playCurrentWordAudio();
+        }
+
+        saveGameState();
+    }
+
+    function playCurrentWordAudio() {
+        const qInfo = getCurrentQuestionInfo();
+        if (qInfo && qInfo.qObj.audio) {
+            GameAudio.playList([qInfo.qObj.audio]);
+        }
+    }
+
+    function checkAnswer() {
+        if (isProcessingAnswer) return;
+
+        const inputElement = getEl("answerInput");
+        const checkBtn = getEl("checkBtn");
+        const enterKey = document.querySelector('.key-enter');
+        
+        const rawAnswer = inputElement.value;
+        const cleanAnswer = cleanForCompare(rawAnswer);
+
+        if (!cleanAnswer) {
+            alert('اول کلمه رو بنویس قهرمان!');
+            return;
+        }
+
+        isProcessingAnswer = true;
+        checkBtn.disabled = true;
+
+        const qInfo = getCurrentQuestionInfo();
+        if (!qInfo) {
+            isProcessingAnswer = false;
+            checkBtn.disabled = false;
+            return;
+        }
+
+        const normalizedAnswer = normalizeText(rawAnswer);
+        const isCorrect = qInfo.qObj.a.some(validAns => {
+            return cleanForCompare(validAns) === cleanAnswer || normalizeText(validAns) === normalizedAnswer;
+        });
+
+        if (isCorrect) {
+            if (enterKey) enterKey.innerText = '✅';
+            GameAudio.playSFX('correct');
+            animateFeedback('correct');
+            showCelebrationEffects();
+
+            getEl('resultDisplay').innerHTML = "آفرین! کاملاً درسته ✅";
+            getEl('resultDisplay').className = "result correct";
+
+            currentGameState.score++;
+            questionsCompleted++;
+
+            updateVisualProgress();
+            saveGameState();
+
+            setTimeout(() => {
+                if (enterKey) enterKey.innerText = 'بررسی';
+                checkBtn.disabled = false;
+                isProcessingAnswer = false;
+                if (questionsCompleted >= totalQuestions) {
+                    endGame();
+                } else {
+                    loadQuestion();
+                    openKeyboard();
+                }
+            }, 1600);
+        } else {
+            if (enterKey) enterKey.innerText = '❌';
+            GameAudio.playSFX('wrong');
+            animateFeedback('wrong');
+            getEl('resultDisplay').innerHTML = "دوباره دقت کن و بنویس! ❌";
+            getEl('resultDisplay').className = "result wrong";
+            
+            setTimeout(() => {
+                if (enterKey) enterKey.innerText = 'بررسی';
+                checkBtn.disabled = false;
+                isProcessingAnswer = false;
+            }, 700);
+        }
+    }
+
+    async function endGame() {
+        closeKeyboard();
+        GameAudio.stop();
+        GameAudio.playSFX('win');
+
+        userProfile.totalGames++;
+        userProfile.totalStars++;
+        userProfile.reportShown = true;
+
+        clearGameState();
+        saveProfile();
+
+        showScreen('portal-submitting-screen');
+        await Portal.submitProgress(1, {
+            onSuccess: (data) => {
+                userProfile.totalGames = data.plays;
+                userProfile.totalStars = data.stars;
+                saveProfile();
+                updateStatsBar();
+                showReportScreen(data.goalReached, data.stars);
+            },
+            onFailure: (err) => {}
+        });
+    }
+
+    function showReportScreen(goalReached, currentStars) {
+        showScreen('screenReport');
+        const stars = currentStars !== undefined ? currentStars : userProfile.totalStars;
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeStr = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        getEl('rep-name').innerText = userProfile.name;
+        getEl('rep-time').innerText = toPersian(dateStr) + ' - ' + toPersian(timeStr);
+        getEl('rep-games').innerText = toPersian(userProfile.totalGames);
+        getEl('rep-stars').innerText = toPersian(stars);
+
+        const repSchool = getEl('rep-school');
+        if (repSchool) {
+            const schoolTitle = getEl('portal-school-title').textContent;
+            repSchool.innerText = schoolTitle && schoolTitle !== '---' ? schoolTitle : 'دبستان';
+        }
+
+        const repReqStarsRow = getEl('portal-req-stars-row');
+        if (repReqStarsRow) {
+            repReqStarsRow.style.display = 'block';
+            getEl('rep-req-stars').innerText = toPersian(Portal.requiredStars) + ' ⭐';
+        }
+
+        const goalBadge = getEl('portal-goal-reached-badge');
+        const submitBadge = getEl('portal-submit-badge');
+        const backInstruction = getEl('portal-back-instruction');
+        const playAgainBtn = getEl('playAgainBtn');
+
+        goalBadge.style.display = 'none';
+        submitBadge.style.display = 'none';
+        backInstruction.style.display = 'none';
+        playAgainBtn.style.display = 'block';
+
+        if (goalReached) {
+            goalBadge.style.display = 'block';
+            playAgainBtn.style.display = 'none';
+            backInstruction.innerHTML = `
+                <div style="background:#e8f5e9; border:1px solid #2e7d32; color:#1b5e20; padding:12px; border-radius:10px; margin-top:10px; font-weight:bold; font-size:11pt; text-align:center;">
+                    📱 آفرین! تکلیف با موفقیت تکمیل شد.<br>
+                    حالا با زدن <b>دکمه بازگشت (Back) گوشی</b> به پرتال کلاس برگرد.
+                </div>
+            `;
+            backInstruction.style.display = 'block';
+        } else {
+            const remaining = Portal.requiredStars - stars;
+            submitBadge.innerHTML = `✨ آفرین قهرمان! تو <b>${toPersian(stars)}</b> ستاره از <b>${toPersian(Portal.requiredStars)}</b> ستاره‌ی این تکلیف رو گرفتی! ⭐ فقط به <b>${toPersian(remaining)}</b> ستاره‌ی دیگه نیاز داری تا تیک بخوره. بدو برو بعدی رو حل کن! 🏆`;
+            submitBadge.style.display = 'block';
+            playAgainBtn.innerText = "گرفتن ستاره بیشتر 🎮";
+            backInstruction.innerHTML = `
+                <div style="background:#fff3e0; border:1px solid #ffe082; color:#e65100; padding:10px; border-radius:10px; margin-top:10px; font-size:10.5pt; text-align:center;">
+                    💡 اگه می‌خوای بعداً بازی کنی، با زدن <b>دکمه بازگشت (Back) گوشی</b> به پرتال برگرد.
+                </div>
+            `;
+            backInstruction.style.display = 'block';
+        }
+    }
+
+    function showScreen(id) {
+        ['screenRegister', 'screenGame', 'screenReport', 'screen-assistant', 'portal-submitting-screen'].forEach(s => {
+            const el = getEl(s);
+            if (el) el.classList.add('hidden');
+        });
+        const target = getEl(id);
+        if (target) target.classList.remove('hidden');
+
+        const statsBar = getEl('statsBar');
+        if (statsBar) {
+            statsBar.classList.toggle('hidden', id === 'screenRegister' || id === 'screen-assistant' || id === 'portal-submitting-screen');
+        }
+        if (id !== 'screenGame') closeKeyboard();
+    }
+
+    function updateStatsBar() {
+        getEl('studentNameStat').innerText = userProfile.name;
+        getEl('gameCountStat').innerText = toPersian(userProfile.totalGames);
+        getEl('starCountStat').innerText = toPersian(userProfile.totalStars);
+    }
+
+    function restartGame() {
+        userProfile.reportShown = false;
+        questionsCompleted = 0;
+        currentGameState.score = 0;
+        lastPlayedSectionIntro = -1;
+        saveProfile();
+        clearGameState();
+        showScreen('screenGame');
+        updateStatsBar();
+        updateVisualProgress();
+        loadQuestion();
+    }
+
+    window.submitAssistantStar = async function() {
+        showScreen('portal-submitting-screen');
+        await Portal.submitProgress(null, {
+            onSuccess: () => authenticatePortalStudent(),
+            onFailure: () => {}
+        });
+    };
+
+    window.retryAuthentication = function() {
+        authenticatePortalStudent();
+    };
+
+    async function authenticatePortalStudent() {
+        await Portal.authenticate({
+            onSuccess: (data) => {
+                try {
+                    getEl('portal-welcome-section').style.display = '';
+                    getEl('startGame').style.display = '';
+                    getEl('portal-error-section').style.display = 'none';
+
+                    STORAGE_KEY = `studentProfile_Emla11_${Portal.studentId}_${Portal.homeworkId}`;
+                    GAME_STATE_KEY = `gameState_Emla11_${Portal.studentId}_${Portal.homeworkId}`;
+
+                    const savedProfile = localStorage.getItem(STORAGE_KEY);
+                    if (savedProfile) {
+                        try { userProfile = JSON.parse(savedProfile); } catch (e) {}
+                    }
+
+                    userProfile.name = data.name || Portal.studentName || userProfile.name || "دانش‌آموز";
+                    userProfile.totalGames = data.plays !== undefined ? data.plays : userProfile.totalGames;
+                    userProfile.totalStars = data.stars !== undefined ? data.stars : userProfile.totalStars;
+                    saveProfile();
+                    updateStatsBar();
+
+                    getEl('portal-student-name').textContent = userProfile.name;
+                    getEl('portal-prev-plays').textContent = toPersian(userProfile.totalGames);
+                    getEl('portal-prev-stars').textContent = toPersian(userProfile.totalStars) + ' ⭐';
+                    getEl('portal-req-stars').textContent = toPersian(Portal.requiredStars) + ' ⭐';
+
+                    const unfinished = checkSavedUnfinishedState();
+                    const startBtn = getEl('startGame');
+                    if (unfinished) {
+                        startBtn.textContent = 'ادامه املا (باقیمانده) 🔄';
+                        startBtn.style.backgroundColor = '#e65100';
+                    } else {
+                        startBtn.textContent = 'شروع عملیات املا ⛺';
+                        startBtn.style.backgroundColor = '#2e7d32';
+                    }
+
+                    const hasUnsentStar = localStorage.getItem(`portal_needs_submit_${Portal.gameId}_${Portal.studentId}_${Portal.homeworkId}`) === 'true';
+
+                    if (hasUnsentStar) {
+                        getEl('ast-welcome').textContent = `سلام ${userProfile.name} عزیز! 🌟`;
+                        showScreen('screen-assistant');
+                    } else if (userProfile.reportShown) {
+                        showReportScreen(userProfile.totalStars >= Portal.requiredStars, userProfile.totalStars);
+                    } else if (unfinished) {
+                        questionsCompleted = unfinished.completedCount;
+                        currentGameState = unfinished;
+                        showScreen('screenGame');
+                        getEl('welcomeName').innerText = `سلام ${userProfile.name} قهرمان!`;
+                        updateVisualProgress();
+                        loadQuestion();
+                    } else {
+                        showScreen('screenRegister');
+                    }
+                } catch (err) {
+                    showScreen('screenRegister');
+                }
+            },
+            onFailure: () => {
+                showScreen('screenRegister');
+                getEl('portal-welcome-section').style.display = 'none';
+                getEl('startGame').style.display = 'none';
+                getEl('portal-error-section').style.display = 'block';
+            },
+            onGuestMode: () => {
+                showScreen('screenRegister');
+                getEl('portal-welcome-section').style.display = 'none';
+                getEl('startGame').style.display = 'none';
+                getEl('portal-error-section').style.display = 'block';
+            }
+        });
+    }
+
+    getEl('startGame').onclick = () => {
+        GameAudio.playSFX('click');
+        const unfinished = checkSavedUnfinishedState();
+        if (unfinished) {
+            questionsCompleted = unfinished.completedCount;
+            currentGameState = unfinished;
+        } else {
+            questionsCompleted = 0;
+            currentGameState.score = 0;
+            clearGameState();
+        }
+        userProfile.reportShown = false;
+        saveProfile();
+        showScreen('screenGame');
+        getEl('welcomeName').innerText = `سلام ${userProfile.name} قهرمان!`;
+        updateVisualProgress();
+        loadQuestion();
+    };
+
+    const vKeyboard = getEl('virtualKeyboard');
+    vKeyboard.addEventListener('contextmenu', e => e.preventDefault());
+
+    document.querySelectorAll('.key').forEach(key => {
+        key.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            GameAudio.playSFX('click');
+
+            const keyChar = key.getAttribute('data-key');
+            if (!keyChar) return;
+
+            const input = getEl('answerInput');
+            if (keyChar === 'back') {
+                input.value = input.value.slice(0, -1);
+            } else if (keyChar === 'enter') {
+                checkAnswer();
+            } else {
+                input.value += keyChar;
+            }
+        });
+    });
+
+    window.onload = () => {
+        const isMuted = GameAudio.isMuted;
+        const btn = getEl('btn-sound-toggle');
+        if (btn) btn.innerText = isMuted ? '🔇 صدا: خاموش' : '🔊 صدا: روشن';
+
+        authenticatePortalStudent();
+        window.addEventListener('beforeunload', () => { if (userProfile.name) saveProfile(); });
+
+        if ('serviceWorker' in navigator) {
+            const hadExistingController = !!navigator.serviceWorker.controller;
+            navigator.serviceWorker.register('sw.js');
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing && hadExistingController) {
+                    window.location.reload();
+                    refreshing = true;
+                }
+            });
+        }
+    };
+</script>
+</body>
+</html>
